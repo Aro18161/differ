@@ -30,6 +30,8 @@ function contentSecurityPolicy(): Plugin {
         "img-src 'self' data:",
         "font-src 'self' data:",
         "connect-src 'self'",
+        // Monaco 언어 워커는 Vite가 번들한 같은 출처 파일 또는 blob으로 뜬다.
+        "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'none'",
         "form-action 'none'"
@@ -58,6 +60,15 @@ export default defineConfig({
     resolve: {
       alias: { ...sharedAlias, '@': resolve('src/renderer/src') }
     },
-    plugins: [contentSecurityPolicy(), react(), tailwindcss()]
+    plugins: [contentSecurityPolicy(), react(), tailwindcss()],
+    build: {
+      rolldownOptions: {
+        // 메인 창과 연관 그래프 창(⌘G)은 같은 preload를 쓰는 별도 페이지다.
+        input: {
+          index: resolve('src/renderer/index.html'),
+          graph: resolve('src/renderer/graph.html')
+        }
+      }
+    }
   }
 })

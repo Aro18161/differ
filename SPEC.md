@@ -44,13 +44,15 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 **규칙**
 
 1. 프로젝트를 등록하는 순간 모든 텍스트 파일의 현재 내용을 기준선으로 스냅샷한다. 그래서 등록 이후의 변경만 보인다.
-   - 옵션: 등록 때 "git HEAD 기준으로 시작"을 고르면 저장소 HEAD 내용을 기준선으로 쓴다. 이미 있는 미커밋 변경도 보인다. git은 읽기 명령(`git show HEAD:<path>`)만 쓴다.
+   - 옵션: 등록 때 "git HEAD 기준으로 시작"을 고르면 저장소 HEAD 내용을 기준선으로 쓴다. 이미 있는 미커밋 변경도 보인다. git은 읽기 명령만 쓴다: 파일 목록은 `git ls-tree -r -z HEAD`, 내용은 `git cat-file --batch`(프로세스 하나로 `git show HEAD:<path>`와 같은 blob을 읽는다). `.git`이 없으면 git을 부르지 않고, HEAD를 읽지 못하면 현재 내용 기준으로 바꾸고 그 사실을 알린다.
 2. 파일이 바뀌면 기준선과 현재 내용으로 diff를 다시 계산한다. diff가 비어 있지 않으면 "미확인 파일"이다.
 3. hunk 체크는 그 hunk의 현재 줄들로 기준선의 해당 줄 범위를 교체해 저장한다. 다시 계산하면 그 hunk는 사라진다.
 4. 전체 확인은 기준선을 현재 내용으로 통째로 바꾼다. 파일은 미확인 목록에서 빠진다.
 5. 확인한 곳을 Claude가 또 고치면, 확인한 버전 대비 새로 바뀐 부분만 hunk로 다시 나온다. 이것이 "이전 수정 대비" diff다.
-6. 새 파일은 기준선이 빈 내용이라 전체가 추가로 보인다. 삭제된 파일은 "삭제됨"으로 보이고, 확인하면 기준선에서도 지운다. 이름 변경은 v1에서 삭제+추가로 처리한다.
-7. ⌥⌘Z로 직전 확인 동작을 되돌린다(기준선 이전 버전 복원). 최소 50단계를 보관한다.
+6. 새 파일은 기준선이 없어(빈 내용으로 비교) 전체가 추가로 보인다. 빈 새 파일도 `N +0 −0`으로 보이고 전체 확인할 수 있다. 삭제된 파일은 "삭제됨"으로 보이고, 확인하면 기준선에서도 지운다. 이름 변경은 v1에서 삭제+추가로 처리한다(대소문자만 바꾼 이름 변경, 폴더 이름 변경도 같다). 새 바이너리 파일은 `binary`, 지운 바이너리는 `deleted` 0/0이다.
+7. ⌥⌘Z로 직전 확인 동작을 되돌린다(기준선 이전 버전 복원). 100단계를 보관한다. 확인 뒤 편집 투명 규칙으로 저장한 내 편집은 되돌려도 diff로 다시 나오지 않는다(되돌릴 기준선에도 옮겨 둔다).
+8. 줄은 줄 끝 문자까지 비교한다. 그래서 CRLF↔LF, 파일 끝 개행 차이도 바뀐 줄로 보인다(기준선 == 현재일 때만 hunk가 없다는 불변식을 지키기 위해서다). 단독 `\r`도 Monaco처럼 줄바꿈으로 센다.
+9. 프로젝트 루트 폴더가 통째로 사라지면 모든 파일을 삭제로 표시하지 않고 프로젝트를 오류 상태로 둔다.
 
 **동시성**
 
@@ -98,7 +100,8 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 - 상태 표시: 새 파일은 이름 옆 작은 `N`, 삭제 파일은 취소선과 `D`.
 - 변경 직후 3초간 줄 왼쪽에 작은 점으로 "방금 바뀜"을 표시한다.
 - 맨 아래 접힌 섹션 "확인 완료 (n)": 이번 세션에 전체 확인한 파일. 클릭하면 diff 없이 현재 코드만 보여준다.
-- 우클릭 메뉴: 전체 확인, Finder에서 보기, 경로 복사.
+- 우클릭 메뉴: 전체 확인, Finder에서 보기, 경로 복사(프로젝트 루트 기준 상대 경로).
+- "방금 바뀜" 점은 앱이 켜진 뒤 새로 들어왔거나 다시 바뀐 항목에만 찍는다(켤 때 받은 오래된 변경에는 없다).
 - 너비는 오른쪽 경계선을 끌어 바꾼다. 더블클릭하면 260px로 돌아가고, 경계선에 포커스가 있으면 ←/→로 10px씩 바꾼다. 바꾼 너비는 앱을 다시 켜도 유지한다(렌더러 localStorage).
 
 **가운데 diff 코드 창**
@@ -107,7 +110,9 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 - 본문: 현재 파일을 편집 가능한 Monaco 에디터로 열고 그 위에 인라인 diff를 그린다(편집은 4장). 추가 줄은 초록 배경, 삭제 줄은 그 자리 위에 빨간 배경으로 끼워 넣는다(편집 불가).
 - 바뀜지 않은 구간은 위아래 3줄만 남기고 접는다. 접힌 곳의 "⋯ 42줄 숨김"을 클릭하면 펼친다.
 - 각 hunk 첫 줄 오른쪽에 체크 버튼(원형 ✓)과 `+3 −1`을 둔다. 누르면 짧게 페이드아웃된 뒤 hunk가 사라지고 다음 hunk로 스크롤한다.
-- 마지막 hunk를 체크하면 파일이 "확인 완료"로 옮겨지고, 다음 미확인 파일이 자동으로 열린다.
+- 마지막 hunk를 체크하면 파일이 "확인 완료"로 옮겨지고, 다음 미확인 파일이 자동으로 열린다. 체크하는 사이 저장 안 된 편집이 생겼으면 목록만 옮기고 파일은 연 채로 둔다.
+- 삭제 줄 view zone은 1,000줄까지 그리고, 넘으면 "⋯ 지운 줄 N개 더" 안내 줄 하나를 붙인다. 지워진 파일은 기준선 내용을 모델에 넣고 모든 줄을 빨갛게 칠한다.
+- 확인 완료한 바이너리 파일을 열면 "바이너리 또는 2MB가 넘는 파일이라 내용을 보여 주지 않습니다"만 띄우고 확인 버튼은 그리지 않는다.
 - 함수 정의 첫 줄 오른쪽에 AI 함수 설명을 연한 회색으로 붙인다(5장).
 - 신택스 강조는 Monaco 기본 언어 지원을 쓴다.
 
@@ -138,10 +143,12 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 
 **감시 대상과 제외 규칙**
 
-- 프로젝트의 `.gitignore`를 따른다. 항상 제외: `.git/`, `node_modules/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `.DS_Store`.
-- 바이너리 파일(NUL 바이트 포함)과 2MB를 넘는 파일은 diff 없이 "바이너리/대용량 파일 변경됨"으로만 표시한다.
-- 설정에서 프로젝트별 추가 제외 패턴(glob)을 입력할 수 있다.
-- 변경 감지 디바운스는 300ms다. Claude가 짧은 간격으로 여러 번 쓰면 한 번으로 합친다.
+- 프로젝트의 `.gitignore`(루트와 하위 폴더, 깊은 파일의 `!` 되살림이 이긴다)를 따른다. `.git/info/exclude`와 전역 `core.excludesFile`은 v1에서 따르지 않는다. 항상 제외: `.git/`, `node_modules/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `.DS_Store`, 앱의 저장 임시 파일(`*.differ-save.tmp`), 루트 안에 있는 앱 데이터 폴더.
+- 심볼릭 링크 폴더 안으로는 들어가지 않는다. 링크 폴더를 거치는 경로는 없는 파일로 본다(루트 밖 내용을 읽거나 AI로 보내지 않기 위해서다).
+- 바이너리 파일(NUL 바이트 포함)과 2MB를 넘는 파일은 diff 없이 "바이너리/대용량 파일 변경됨"으로만 표시한다. 기준선에는 내용 대신 SHA-256만 둔다.
+- 설정에서 프로젝트별 추가 제외 패턴(glob, `#`으로 시작하는 줄은 주석)을 입력할 수 있다. 제외 규칙이 바뀌어 새로 감시하게 된 파일은 현재 내용을 기준선으로 삼는다.
+- 변경 감지 디바운스는 300ms(최대 1초 대기)다. Claude가 짧은 간격으로 여러 번 쓰면 한 번으로 합친다. 감시 이벤트 종류는 믿지 않고 디스크를 다시 읽는다. `.gitignore`가 바뀌거나 이벤트가 유실되면 전체를 다시 훑는다(크기·수정 시각이 같은 파일은 다시 읽지 않는다).
+- diff는 jsdiff Myers를 편집 거리 1,000까지만 쓰고, 그보다 많이 바뀐 파일은 양쪽에 한 번씩만 나오는 줄을 기준점으로 잘라(patience 방식) 구간마다 다시 비교한다. 시간이 아니라 편집 거리로 자르므로 main과 렌더러가 같은 hunk를 낸다.
 
 **빈 상태**
 
@@ -155,15 +162,20 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 **직접 편집**
 
 - Monaco를 편집 가능 상태로 연다. 찾기/바꾸기, 다중 커서 등 Monaco 기본 기능을 그대로 쓴다.
-- 저장은 ⌘S다. 임시 파일에 쓴 뒤 rename하는 원자적 저장을 쓴다. 설정에 "포커스를 잃으면 자동 저장" 옵션을 둔다(기본 끔).
-- 저장 안 된 파일은 사이드바 이름 앞에 ●, 헤더에 "수정됨"을 표시한다. 창을 닫거나 파일을 바꿀 때 저장 여부를 묻는다.
-- 앱이 직접 쓴 내용은 감시기가 다시 잡아도 외부 변경으로 치지 않는다. 마지막으로 쓴 내용의 해시를 기억해 비교한다.
+- 저장은 ⌘S다. 같은 폴더의 임시 파일(`.<이름>.<pid>.<n>.differ-save.tmp`)에 쓴 뒤 rename하는 원자적 저장을 쓰고, 기존 권한을 유지한다. 심볼릭 링크·폴더 자리, 읽기 전용 파일, 루트 밖 경로, UTF-8이 아닌 파일은 저장을 거절한다. 설정에 "포커스를 잃으면 자동 저장" 옵션을 둔다(기본 끔). 켜져 있으면 파일을 바꾸거나 창을 닫을 때 묻지 않고 저장한다.
+- 버퍼는 Monaco 모델 값이 아니라 원문(섞인 줄 끝·단독 CR·BOM 유지)으로 따로 관리해 저장한다. Monaco가 줄 끝과 BOM을 정규화하기 때문이다.
+- 저장 안 된 파일은 사이드바 이름 앞에 ●, 헤더에 "수정됨", 창 제목 막대에 macOS 문서 수정 표시를 한다. 창을 닫거나(⌘W, ⌘Q, Dock 종료) 파일을 바꿀 때 "저장 / 저장 안 함 / 취소"를 네이티브 대화상자로 묻는다. 렌더러 새로고침은 막는다.
+- 저장 안 된 편집이 있는 파일에서는 hunk 확인·전체 확인을 막고 "저장(⌘S)한 뒤 확인하세요" 토스트를 띄운다(확인은 디스크 내용 기준이다). ⌥⌘Z도 직전 확인이 편집 중인 파일이면 되돌리지 않는다.
+- 앱이 직접 쓴 내용은 감시기가 다시 잡아도 외부 변경으로 치지 않는다. 쓴 내용의 해시를 10초 동안 기억해 비교한다.
+- 앱 메뉴: File(Save ⌘S, Close), Edit(Undo/Redo는 렌더러로 넘기고 나머지는 기본 역할), View, Window. 라벨은 macOS 기본 메뉴처럼 영어다.
 
 **내 편집은 diff로 안 보인다 (편집 투명 규칙)**
 
 - hunk 밖(바뀜지 않은 구간)을 고치면 같은 편집을 메모리 속 기준선에도 적용한다. 그래서 내 편집은 diff에 나타나지 않는다.
 - 미확인 hunk 안을 고치면 기준선은 그대로 둔다. 그 hunk는 "원래 변경 + 내 수정"이 합쳐진 모습으로 남고, 확인은 따로 한다.
-- 편집이 hunk 경계에 걸치면 hunk 안을 고친 것으로 본다.
+- 편집이 hunk 경계에 걸치면 hunk 안을 고친 것으로 본다. 줄 끝 문자로 끝나는 "통째 줄" 넣기(hunk 첫 줄 맨 앞에서 Enter·붙여넣기), hunk 바로 위 줄 통째 지우기, 순수 삭제 자리 아래 줄 맨 앞에서 치기는 hunk 줄을 바꾸지 않으므로 밖으로 본다. 줄 합치기처럼 hunk 줄을 바꾸면 안이다.
+- 기준선이 없는 새 파일에서는 이 규칙을 쓰지 않는다(쓰면 저장 때 기준선이 생겨 "새 파일"이 "수정됨"으로 바뀐다). 기준선이 빈 내용인 기존 파일에는 쓴다.
+- 편집 중(저장 전)에는 바뀌지 않은 구간 접기를 새로 늘리지 않는다. 펼친 구간 안을 고쳐도 펼친 채로 둔다.
 - 메모리 기준선은 저장할 때 함께 영속화하고, 저장하지 않고 닫으면 버린다.
 - 판단은 Monaco `onDidChangeModelContent`의 변경 범위로 한다. 이 매핑 함수는 `shared/`에 순수 함수로 두고 단위 테스트한다.
 - 설정에 "내 편집도 diff로 보기" 옵션을 둔다(기본 끔). 켜면 이 규칙을 적용하지 않는다.
@@ -171,27 +183,31 @@ Differ는 Claude 맥 데스크톱 앱 등이 로컬 폴더에서 바꾼 코드�
 **충돌**
 
 - 저장 안 된 편집이 있는데 디스크의 같은 파일이 바뀌면, 헤더 아래에 배너를 띄운다: "디스크에서 파일이 바뀌었습니다 — 디스크 버전 불러오기 / 내 편집 유지".
-- "내 편집 유지" 후 저장하면 디스크 버전을 덮어쓴다. 덮어쓰기 전 디스크 버전을 앱 데이터 폴더에 백업한다(파일당 최근 20개).
+- "내 편집 유지" 후 저장하면 디스크 버전을 덮어쓴다. 덮어쓰기 전 디스크 버전을 앱 데이터 폴더(`projects/<projectId>/backups/`)에 백업한다(파일당 최근 20개).
 - 저장 안 된 편집이 없으면 조용히 다시 불러오고 커서와 스크롤 위치를 유지한다.
 
 **인라인 AI 수정 (⌘K)**
 
 1. 고칠 코드를 선택하고 ⌘K를 누른다. 선택이 없으면 커서가 있는 함수 전체(tree-sitter), 함수 밖이면 현재 줄이 범위가 된다. 우클릭 메뉴 "AI로 수정"도 같다.
-2. 선택 범위 바로 위에 입력창이 열린다(Monaco view zone). 안내 문구는 "이 부분을 어떻게 바꿀까요?". Enter 전송, ⇧Enter 줄바꿈, Esc 취소, ↑는 이 프로젝트의 최근 프롬프트 20개를 불러온다.
-3. 전송하면 main 프로세스가 Claude API를 호출한다. 기다리는 동안 입력창에 진행 표시와 "취소" 버튼이 보인다.
+2. 선택 범위 바로 위에 입력창이 열린다. Monaco view zone으로 자리(높이)만 잡고, 입력창은 그 위치에 맞춘 overlay widget에 그린다(Monaco ZoneWidget 방식. view zone 층은 `aria-hidden`이라 보조 기술에 보이지 않기 때문이다). 안내 문구는 "이 부분을 어떻게 바꿀까요?". Enter 전송, ⇧Enter 줄바꿈, Esc 취소, ↑는 이 프로젝트의 최근 프롬프트 20개를 불러온다(렌더러 localStorage `differ:inline-prompts:<projectId>`).
+3. 전송하면 main 프로세스가 Claude API를 호출한다. 기다리는 동안 입력창에 "Claude가 고치는 중… N초" 글자와 "취소" 버튼이 보인다(회전 애니메이션은 쓰지 않는다). 취소와 기다리는 중의 Esc는 요청만 멈추고 프롬프트를 둔 채 입력창으로 돌아간다. 요청 시간 제한은 300초다.
 4. 결과는 선택 범위 자리에 미리보기 diff(빨강: 기존, 초록: 제안)로 나온다. 아래에 Claude의 한국어 한 줄 설명과 "수락 ⌘↵", "거절 Esc", "다시 요청" 버튼이 붙는다. "다시 요청"은 프롬프트를 고쳐 재전송한다.
 5. 수락하면 에디터 버퍼에 한 번의 편집으로 들어간다(⌘Z로 되돌릴 수 있음). 디스크 반영은 일반 저장과 같다. 거절하면 아무것도 바뀌지 않는다.
 
 **인라인 수정 요청 규칙**
 
 - 입력: 파일 경로, 언어, 파일 전체(3,000줄을 넘으면 선택 범위 앞뒤 200줄), `<<<SELECTION` / `SELECTION>>>` 표식으로 감싼 선택 범위, 사용자 프롬프트. 입력 내용은 저장 전 버퍼 기준이다.
-- 출력은 tool use로 강제한다: `{ replacement: string, note: string }`. `replacement`는 선택 범위를 대체할 코드만, `note`는 무엇을 바꾨는지 한국어 한 줄이다.
+- 출력은 tool use(`replace_selection`)로 받는다: `{ replacement: string, note: string }`. `replacement`는 선택 범위를 대체할 코드만, `note`는 무엇을 바꾸는지 한국어 한 줄(최대 120자)이다. `claude-sonnet-5-5`는 `tool_choice` 강제(`tool`/`any`)를 400으로 거절하므로, `tool_choice: auto` + `strict: true` 도구 + 시스템 지시로 부르고 도구를 안 부르면 한 번 더 요청한다. 답 전체를 감싼 코드 블록은 벗기고 끝 줄바꿈은 선택 범위에 맞춘다.
+- 표식은 선택 범위의 정확한 시작·끝 위치에 줄바꿈 없이 끼우고, 사용자 메시지에 "선택 범위: N번째 줄 M열 ~ …" 줄을 넣는다. 선택이 없을 때의 함수 범위는 main이 tree-sitter로 계산한다(`ai:inlineScope`).
 - 시스템 프롬프트 요지: "선택 범위만 다시 쓴다. 범위 밖 코드는 바꾸지 않는다. 원래 들여쓰기와 코드 스타일을 지킨다. 설명은 코드에 넣지 말고 note에만 쓴다."
 - 모델은 설명용과 따로 고른다. 기본값은 수정 품질을 우선해 `claude-sonnet-5-5`다.
-- 응답을 기다리는 동안 선택 범위가 바뀌면 결과를 버리고 "범위가 바뀌어 결과를 버렸습니다" 토스트를 띄운다.
-- v1은 파일당 동시에 인라인 요청 하나만 허용한다.
+- 응답을 기다리는 동안 선택 범위가 바뀌면 결과를 버리고 "범위가 바뀌어 결과를 버렸습니다" 토스트를 띄운다. 범위 시작에 붙인 넣기는 범위 앞 편집으로 보고 범위를 옮기고, 범위 끝에 붙인 넣기는 무시한다. 입력 중(요청 전)에 범위 안을 고치면 범위를 넓힐 뿐 버리지 않는다.
+- 입력 중에 디스크 변경으로 조용히 다시 불러오면, 고른 코드를 새 내용에서 찾아 한 곳에만 있으면 범위를 그리로 옮기고, 없거나 여러 곳이면 버리고 토스트를 띄운다.
+- 미리보기에서 바뀌는 지금 줄은 실제 줄 위의 빨강 데코레이션, 제안 줄은 초록 view zone(2,000줄까지 표시)이다.
+- v1은 파일당 동시에 인라인 요청 하나만 허용한다. 입력창이 열린 상태(요청 전)에서 다른 곳을 선택하고 ⌘K를 다시 누르면 범위만 바꾼다.
 - 수락한 AI 수정에도 편집 투명 규칙이 같이 적용된다. 미리보기에서 이미 봤기 때문이다.
-- 키가 없으면 ⌘K는 설정 화면으로 안내한다. 전송 제외 파일(`.env*` 등)에서는 ⌘K를 막고 이유를 토스트로 알린다.
+- 키가 없으면 ⌘K는 설정 화면 AI 탭을 연다. AI 꺼짐·프로젝트 AI 꺼짐이면 막고 "설정 열기" 버튼이 있는 토스트를 띄운다. 전송 제외 파일(`.env*` 등)에서는 ⌘K를 막고 이유를 토스트로 알린다.
+- max_tokens는 선택 길이에 따라 16k–32k다.
 
 ## 5. AI 설명 (Claude API)
 
@@ -202,32 +218,35 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 - 설정 화면에 키 입력란(마스킹), "연결 테스트" 버튼, 모델 선택, 기능 켜기/끄기를 둔다.
 - 키는 Electron `safeStorage`로 암호화해 앱 데이터 폴더에 저장한다(macOS 키체인 기반). 렌더러로는 절대 보내지 않는다.
 - API 호출은 main 프로세스에서 `@anthropic-ai/sdk`로 한다.
-- 기본 모델은 빠르고 저렴한 `claude-haiku-5-5`, 선택지로 `claude-sonnet-5-5`를 둔다. 모델 ID는 구현 시점에 Anthropic 문서에서 다시 확인한다.
+- 기본 모델은 빠르고 저렴한 `claude-haiku-5-5`, 선택지로 `claude-sonnet-5-5`를 둔다. 모델 ID는 구현 시점에 Anthropic 문서에서 다시 확인한다(2026-11 확인).
+- 요청 주소는 `https://api.anthropic.com`으로 고정한다. 환경 변수(`ANTHROPIC_BASE_URL`)로 키가 다른 곳에 가지 않게 하기 위해서다. 요청 시간 제한은 설명 생성 120초, 연결 테스트 20초, 인라인 수정·명령 설명 300초다.
 
 **파일 한 줄 설명**
 
 - 위치: 가운데 헤더의 파일 경로 옆, 연한 회색, 최대 60자.
 - 내용: 이 파일이 맡은 역할. 이번 변경 요약이 아니다.
+- 대상: 모든 텍스트 파일(함수 설명은 v1 언어만). 설명을 기다리는 동안에는 직전 설명을 그대로 보여 주고, 실패하면 비운다.
 
 **함수 한 줄 설명**
 
 - 위치: 함수 정의 첫 줄(이름이 있는 줄) 끝에서 2칸 띄우고 연한 회색으로 표시한다. 최대 40자.
 - 구현: Monaco 데코레이션의 `after` 주입 텍스트(injected text)로 그린다. 에디터 모델(문서 내용)에는 넣지 않는다. 그래서 선택, 복사, 검색에 걸리지 않고 줄 번호와 diff 계산에도 영향이 없다.
-- 대상: 함수 선언, 클래스 메서드, 변수에 대입한 화살표 함수와 함수 표현식, Python `def`/`async def`. 익명 콜백과 삭제된 줄(빨간 영역)은 제외한다.
+- 대상: 함수 선언, 클래스 메서드, 클래스의 화살표 함수 필드, 변수에 대입한 화살표 함수와 함수 표현식(`x = () => {}`, `obj.prop = function(){}` 포함), Python `def`/`async def`. 익명 콜백, 객체 리터럴 메서드, 삭제된 줄(빨간 영역)은 제외한다.
+- 저장 안 된 편집으로 줄이 밀린 버퍼에는 디스크→버퍼 줄 대응으로 옮겨 붙이고, 편집한 줄 위의 설명은 버린다.
 - 함수 위치는 AI에게 묻지 않고 `web-tree-sitter`로 직접 파싱해 찾는다. v1 언어는 TypeScript, TSX, JavaScript, Python이고, 이후 Go, Rust, Swift를 추가한다.
 
 **호출 방식**
 
 - 파일 하나당 요청 한 번. 입력은 파일 경로, 파일 전체 내용, tree-sitter가 찾은 함수 목록(id, 이름, 시작 줄)이다.
-- 출력은 tool use로 JSON 스키마를 강제한다: `{ fileSummary: string, functions: [{ id: string, summary: string }] }`.
+- 출력은 tool use로 JSON 스키마를 강제한다: `{ fileSummary: string, functions: [{ id: string, summary: string }] }`. 도구는 모두 `strict: true`다. `claude-haiku-5-5`는 `tool_choice: { type: 'tool' }`로 강제하고, 강제 호출을 400으로 거절하는 모델(`claude-sonnet-5-5` 등)은 `tool_choice: auto` + 시스템 지시로 부르고 도구를 안 부르면 한 번 더 요청한다.
 - 시스템 프롬프트 요지: "한국어로 각 항목 한 줄. 파일은 60자, 함수는 40자 이내. '이 함수는' 같은 주어 없이 짧게 끝낸다. 코드에 없는 내용은 추측하지 않는다."
 - 예시: `function applyHunk(...)` 옆에 `체크한 hunk를 기준선에 반영`.
-- 파일이 3,000줄을 넘으면 함수 시그니처와 각 함수의 앞부분만 보낸다.
+- 파일이 3,000줄 또는 30만 자를 넘으면 함수 시그니처와 각 함수의 앞부분만 보내고 줄마다 300자로 자른다. 함수가 없는 파일은 앞 200줄만 보낸다.
 
 **캐시와 비용**
 
 - 함수 설명 캐시 키는 함수 본문 텍스트의 SHA-256이다. 본문이 안 바뀐 함수는 다시 요청하지 않는다.
-- 파일 설명 캐시 키는 경로와 내용 해시다. 단, 바뀐 줄이 전체의 10% 미만이면 기존 설명을 유지한다.
+- 파일 설명 캐시 키는 경로와 내용 해시다. 단, 바뀐 줄이 전체의 10% 미만이면 기존 설명을 유지한다. "바뀐 줄"은 설명을 마지막으로 만든 버전과 비교해 변경 블록마다 지운 줄과 넣은 줄 중 큰 쪽을 센 합이고, 두 버전 중 긴 쪽 줄 수로 나눈다.
 - 생성 시점: 미확인 목록에 있는 파일이 바뀐 뒤 2초 디바운스. 동시 요청은 최대 2개.
 - 확인 완료 파일과 제외 패턴 파일은 요청하지 않는다. 프로젝트 단위로 AI를 끌 수 있다.
 - 실패하면 설명 자리를 비워 두고 헤더에 작은 경고 점만 표시한다. 재시도는 설정에서 한다.
@@ -235,7 +254,8 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 **개인정보**
 
 - "키를 넣고 AI를 켜 둔 프로젝트의 코드만 Anthropic API로 전송됩니다"라는 안내를 설정 화면에 한 줄로 둔다.
-- `.env*`, `*.pem`, `*.key`, `*secret*`, `*credential*` 파일은 항상 전송에서 제외한다.
+- `.env*`, `*.pem`, `*.key`, `*secret*`, `*credential*` 파일은 항상 전송에서 제외한다. 경로의 모든 조각(폴더 포함, 예: `secrets/db.json`)에 대소문자 구분 없이 적용한다.
+- 이 두 규칙(프로젝트 AI 끄기, 전송 제외 파일)은 설명 생성, ⌘K 수정, 명령 설명 모두에 적용한다. 명령 설명에서는 전송 제외 파일의 코드·설명을 빼고 "경로 › 함수 이름 (전송 제외 파일이라 코드를 보내지 않음)"만 넣는다. 전송 제외 스크립트에서 펼친 줄이 있으면 명령에 쓴 환경 변수도 이름만 보낸다.
 
 ## 6. 연관 그래프와 명령 분석
 
@@ -272,7 +292,9 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 - 노드 내용: 파일 이름, 상위 경로(연하게), AI 파일 한 줄 설명(키가 있을 때), 미확인 변경이 있으면 `+n −m` 배지.
 - 간선에 마우스를 올리면 호출되는 함수 이름 목록(예: `build_model()`, `load_ckpt()`)과 호출 횟수를 보여준다.
 - 외부 라이브러리(numpy, torch, react 등)와 테스트 파일은 기본으로 숨긴다. 상단 토글로 켜면 외부 라이브러리는 패키지마다 회색 노드 하나로 맨 오른쪽에 모인다.
-- 파일이 300개를 넘으면 폴더 단위로 묶어 보여주고, 폴더를 클릭하면 펼친다. 명령 분석 결과는 크기와 관계없이 파일 단위로 보여준다.
+- 파일이 300개를 넘으면 폴더 단위로 묶어 보여주고, 폴더를 클릭하면 펼친다. 묶음은 최상위 폴더부터 시작해 클릭할 때마다 한 단계씩 펼치고, 상단에 "폴더 모두 접기"를 둔다. 명령 분석 결과는 크기와 관계없이 파일 단위로 보여준다.
+- 되돌림 간선은 아무도 호출하지 않는 파일부터 DFS를 돌아 고른다.
+- 그래프 창 위치·크기는 기억한다(`graph-window.json`). 메인 창이 닫혀 있어도 더블클릭하면 메인 창을 다시 열어 그 파일을 보여 준다.
 
 **호버와 선택**
 
@@ -286,8 +308,10 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 **호출 관계 추출 (정적 분석)**
 
 - FunctionIndexer(tree-sitter)를 확장해 파일마다 함수 정의, import, 호출 지점을 뽑는다. 파일이 바뀌면 그 파일만 다시 분석한다.
-- Python: `import a.b`, `from a.b import f`, 상대 import(`from .m import f`)를 프로젝트 루트와 진입 파일 폴더 기준으로 해석한다. `f()`, `mod.f()`, `Class()`(생성자) 호출을 정의 파일에 연결한다.
-- TS/JS: `import`/`require`, 상대 경로, `index` 파일, `tsconfig.json`의 `paths`를 해석한다. named, default, namespace import 호출을 연결한다.
+- Python: `import a.b`, `from a.b import f`, 상대 import(`from .m import f`)를 해석한다. 절대 import 탐색 순서는 (명령 분석이면 작업 폴더와 진입 파일 폴더) → 프로젝트 루트 → `src` → 가져오는 파일 폴더다. `f()`, `mod.f()`, `Class()`(생성자) 호출을 정의 파일에 연결한다.
+- TS/JS: `import`/`require`, 상대 경로, `index` 파일, `.js`로 적은 `.ts` import, re-export, `tsconfig.json`의 `paths`를 해석한다. named, default, namespace import 호출을 연결한다. JSX 컴포넌트 사용(`<Panel />`)도 그 컴포넌트 함수의 호출로 본다.
+- 증분 갱신: 바뀐 파일과, 그 파일을 import 해석에 쓴 파일만 다시 연결하고 간선이 실제로 달라진 것만 보낸다. 파일이 생기거나 지워지거나 `tsconfig.json`이 바뀌면 파싱 없이 전체를 다시 연결한다.
+- 외부 라이브러리 함수 이름은 패키지 기준 경로로 적는다(`nn.Linear`, `optim.Adam`).
 - 객체 메서드 호출(`obj.run()`)처럼 타입을 알아야 하는 호출, 동적 import, 문자열로 고르는 호출은 v1에서 연결하지 않는다. 이런 지점 수를 노드에 "미해석 n"으로 작게 표시한다.
 - 정확도를 높이는 다음 단계로 LSP(pyright, tsserver)의 call hierarchy를 쓰는 방안을 후순위에 둔다.
 
@@ -300,7 +324,7 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
   2. 앞쪽 래퍼를 벗긴다: `nohup`, `time`, 환경 변수 대입(`CUDA_VISIBLE_DEVICES=0`), `uv run`, `poetry run`, `conda run -n <env>`, `torchrun ...`, `accelerate launch ...`, `python -u` 같은 인터프리터 옵션.
   3. 진입점을 찾는다: `python x.py`, `python -m pkg.mod`, `node x.js`, `npx tsx x.ts`, `pnpm run <script>`(package.json의 scripts를 펼침), `bash run.sh`(스크립트 안의 실행 줄을 다시 해석).
   4. 나머지 토큰은 인자로 정리한다(`--epochs 10` → 키와 값).
-  5. 진입 파일에서 실제로 실행되는 시작점(`if __name__ == "__main__":` 블록, 최상위 호출, `main()`)부터 함수 단위로 호출을 따라가 도달 가능한 함수와 파일을 모은다. 최대 깊이는 12다.
+  5. 진입 파일에서 실제로 실행되는 시작점(`if __name__ == "__main__":` 블록, 최상위 호출, `main()`)부터 함수 단위로 호출을 따라가 도달 가능한 함수와 파일을 모은다. 최대 깊이는 12다. click/typer는 `@app.command()`로 등록한 함수를 시작점에 넣고, `main()`은 최상위 코드가 프로젝트 함수를 부르지 않을 때만 시작점으로 쓴다. import 순간 실행되는 다른 모듈의 최상위 코드는 v1에서 따라가지 않는다.
 - 해석에 실패하면(진입 파일을 못 찾음 등) 이유를 한 줄로 보여주고, 진입 파일을 직접 고를 수 있게 한다.
 - 결과가 나오면 그래프는 도달 가능한 파일만 남기고, 간선에 실행 순서 번호(1, 2, 3…)를 붙인다.
 
@@ -313,7 +337,8 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
   - `steps`: `[{ order, file, function, role }]`. 실행 흐름 순서와 각 함수가 맡는 역할 한 줄.
   - `outputs`: 이 명령이 남기는 것(로그, 체크포인트, 결과 파일 경로 등).
   - `uncertain`: 정적 분석으로 확정하지 못한 부분(동적 호출, 설정 파일에 따라 갈리는 분기 등).
-- 모델은 인라인 수정과 같은 설정을 쓴다(기본 `claude-sonnet-5-5`).
+- 모델은 인라인 수정과 같은 설정을 쓴다(기본 `claude-sonnet-5-5`). 파일·함수 한 줄 설명은 렌더러가 `ai:getAnnotations`로 모아 `hints`로 넘긴다.
+- 분석이 성공하면 설명을 바로 요청한다. 프로젝트 AI가 꺼져 있으면 보내지 않고 "이 프로젝트는 AI가 꺼져 있어 설명을 만들지 않습니다"를 띄운다(캐시도 보여 주지 않는다).
 - 키가 없으면 해석, 그래프, 도달 함수 목록까지만 보여주고, 설명 자리에 "API 키를 넣으면 설명을 볼 수 있습니다"를 띄운다.
 - 설명 캐시 키는 정규화한 명령과 도달 파일들의 내용 해시다. 파일이 바뀌면 "코드가 바뀌어 설명이 오래됐을 수 있음" 표시와 다시 분석 버튼을 띄운다.
 
@@ -369,7 +394,7 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 
 **모션**
 
-- 체크 시 hunk 페이드아웃 150ms, 파일 목록 재정렬 200ms. 그 외 애니메이션은 없다.
+- 체크 시 hunk 페이드아웃 150ms, 파일 목록 재정렬 200ms. 그 외 애니메이션은 없다. 그래서 토스트(sonner)의 등장·퇴장과 그림자, 드롭다운·컨텍스트 메뉴·대화상자의 열고 닫는 애니메이션도 뺐다.
 - macOS "동작 줄이기"가 켜져 있으면 모두 끈다.
 
 ## 8. 기술 스택 (Orca와 동일)
@@ -385,12 +410,12 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 | 언어 | TypeScript (strict) | 7.x | 7.0.2 |
 | UI | React, react-dom | 19.2 | 19.3.1 |
 | 스타일 | Tailwind CSS(@tailwindcss/vite), class-variance-authority, clsx, tailwind-merge | 4.3 | 4.3.5 (cva 0.7.1, clsx 2.1.1, tailwind-merge 3.7.1) |
-| 컴포넌트 | shadcn/ui 방식(radix-ui), lucide-react, sonner(토스트), cmdk(빠른 열기) | radix-ui 1.6 | radix-ui 1.8.1, lucide-react 1.79.0 (sonner·cmdk는 쓰는 단계에서) |
+| 컴포넌트 | shadcn/ui 방식(radix-ui), lucide-react, sonner(토스트), cmdk(빠른 열기) | radix-ui 1.6 | radix-ui 1.8.1, lucide-react 1.79.0, sonner 2.0.8, cmdk 1.1.1 |
 | 상태 관리 | Zustand | 5 | 5.1.0 |
-| 코드 뷰어 | monaco-editor + @monaco-editor/react | 0.55 / 4.7 | M3에서 설치 |
-| 파일 감시 | @parcel/watcher | 2.5 | M2에서 설치 |
-| 목록 가상화 | @tanstack/react-virtual | — | M2에서 설치 |
-| IPC 검증 | zod | 4.6 | M2에서 설치 |
+| 코드 뷰어 | monaco-editor (@monaco-editor/react는 쓰지 않음) | 0.55 / 4.7 | 0.58.0 |
+| 파일 감시 | @parcel/watcher | 2.5 | 2.6.0 |
+| 목록 가상화 | @tanstack/react-virtual | — | 3.14.28 |
+| IPC 검증 | zod | 4.6 | 4.6.7 (`z.config({ jitless: true })`, CSP에서 eval을 쓰지 않으려고) |
 | 린트/포맷 | oxlint, oxfmt | 1.88 / 0.74 | 1.95.0 / 0.80.0 |
 | 테스트 | Vitest, Playwright | 5.0 / 1.64 | 5.1.1 / 1.65.1 |
 
@@ -400,15 +425,17 @@ API 키를 넣으면 파일과 함수마다 한국어 한 줄 설명을 화면�
 
 **이 앱에만 추가하는 것**
 
-| 영역 | 라이브러리 | 이유 |
-| --- | --- | --- |
-| diff 계산 | `diff` (jsdiff) | main에서 줄 단위 hunk 계산 |
-| 코드 파싱 | `web-tree-sitter` + 언어별 WASM 문법 | 함수 정의, import, 호출 지점 추출 |
-| 그래프 화면 | `@xyflow/react` (React Flow) | 노드·간선 렌더링, 호버, 줌, 팬 |
-| 그래프 배치 | `elkjs` | 왼→오 layered 자동 배치 |
-| 명령 해석 | `shell-quote` | 실행 명령 토큰 분리 |
-| Claude API | `@anthropic-ai/sdk` | 설명, 인라인 수정, 명령 설명 |
-| gitignore 해석 | `ignore` | 제외 규칙 적용 |
+| 영역 | 라이브러리 | 이유 | 설치 버전 |
+| --- | --- | --- | --- |
+| diff 계산 | `diff` (jsdiff) | 줄 단위 hunk 계산(main과 렌더러가 같은 shared 함수) | 9.0.0 |
+| 코드 파싱 | `web-tree-sitter` + 언어별 WASM 문법 | 함수 정의, import, 호출 지점 추출 | 0.27.2 (typescript 0.23.2, javascript 0.25.0, python 0.25.0) |
+| 그래프 화면 | `@xyflow/react` (React Flow) | 노드·간선 렌더링, 호버, 줌, 팬 | 13.0.3 |
+| 그래프 배치 | `elkjs` | 왼→오 layered 자동 배치 | 0.12.1 (0.13.0은 deprecated) |
+| 명령 해석 | `shell-quote` | 실행 명령 토큰 분리 | 1.12.0 |
+| Claude API | `@anthropic-ai/sdk` | 설명, 인라인 수정, 명령 설명 | 1.13.0 |
+| gitignore 해석 | `ignore` | 제외 규칙 적용 | 7.0.16 |
+
+- 네이티브·WASM 패키지(`@parcel/watcher`, tree-sitter 문법 3종)의 설치 스크립트는 돌리지 않는다(`pnpm-workspace.yaml`의 `allowBuilds: false`). 미리 빌드된 바이너리와 패키지에 든 `.wasm`만 쓴다.
 
 **Orca에서 가져오지 않는 것**: xterm.js, node-pty, ssh2, Tiptap, claude-agent-sdk, Linear SDK, PostHog. 터미널, 대화, 텔레메트리가 없는 앱이기 때문이다.
 
@@ -444,53 +471,67 @@ main (Node):
 
 **IPC 계약 (zod로 양쪽 검증)**
 
+계약은 `src/shared/ipc/<도메인>.ts`에 zod 스키마로 두고, preload는 그 계약에 있는 채널만 허용한다. main은 보낸 창이 앱 창인지 확인한 뒤 요청과 응답을 모두 검증한다. 모든 요청에는 `projectId`가 들어간다(아래 표에서는 생략).
+
 | 채널 | 방향 | 내용 |
 | --- | --- | --- |
-| `projects:list` / `add` / `remove` | R→M | 프로젝트 목록, 폴더 선택 대화상자 |
-| `changes:updated` | M→R 이벤트 | 미확인 파일 목록 `{path, added, removed, status, changedAt}[]` |
-| `file:getDiff` | R→M | `{ baselineText, currentText, currentHash, hunks[] }` |
-| `review:checkHunk` | R→M | `{ path, hunkId, currentHash }` → 성공 또는 `stale` |
-| `review:checkFile` | R→M | `{ path, currentHash }` |
-| `review:undo` | R→M | 직전 확인 되돌리기 |
-| `ai:getAnnotations` | R→M | `{ fileSummary?, functions: [{ line, summary }] }` |
+| `projects:list` / `add` / `remove` / `select` | R→M | 프로젝트 목록·선택, 폴더 선택 대화상자(git 저장소면 시작 방식을 묻는다) |
+| `projects:update` / `revealInFinder` | R→M | 프로젝트별 제외 패턴·AI 켜기, Finder에서 보기 |
+| `projects:updated` | M→R 이벤트 | 목록·선택·스냅샷 진행률(100ms 간격) |
+| `changes:get`, `changes:updated` | R→M, M→R 이벤트 | 미확인 파일 목록 `{path, added, removed, status, changedAt}[]` |
+| `files:list` | R→M | ⌘P용 감시 대상 파일 전체 |
+| `file:getDiff` | R→M | `{ kind: text/binary/deleted/missing, status: clean/modified/added/deleted/binary, baselineText, currentText, currentHash, hunks[] }`. `status`로 "기준선 없음"과 "빈 기준선", "바뀐 바이너리"와 "확인한 바이너리"를 가른다 |
+| `review:checkHunk` | R→M | `{ path, hunkId, currentHash }` → `{ status: ok/stale, diff }` |
+| `review:checkFile` | R→M | `{ path, currentHash }` → `{ status: ok/stale, diff }` |
+| `review:undo` | R→M | `{ protectPath? }` → `{ status: ok/empty/blocked, path }` |
+| `ai:getAnnotations`, `ai:getStatus`, `ai:retryFailed` | R→M | `{ status, fileSummary, functions: [{ line, summary }] }`, 실패 현황, 실패분 재시도 |
 | `ai:annotationsUpdated` | M→R 이벤트 | 설명 생성 완료 알림 |
-| `settings:get` / `set`, `ai:testKey` | R→M | 설정, 키 연결 테스트 |
+| `settings:get` / `set`, `settings:updated` | R→M, M→R 이벤트 | 설정과 `hasApiKey`(키 자체는 보내지 않는다) |
+| `ai:setKey` / `clearKey` / `testKey` | R→M | 키 저장(쓰기 전용)·삭제·연결 테스트 |
 
-**편집 기능 채널**: `file:save`(R→M, `{ path, text, baseline, diskHash }` → 성공 또는 `conflict`), `file:externalChange`(M→R 이벤트, 편집 중 디스크 변경 알림), `ai:inlineEdit`(R→M, `{ path, range, prompt, bufferText }` → `{ replacement, note }`), `ai:cancel`(R→M). main에는 저장·백업·자기 쓰기 해시를 맡는 `EditService`를 추가한다.
+**편집 기능 채널**: `file:save`(R→M, `{ path, text, baseline, diskHash, overwrite }` → `{ status: 'saved', savedHash, diff }` 또는 `{ status: 'conflict', diff }`. `baseline`이 null이면 기준선을 그대로 두고, `overwrite`면 덮어쓰기 전에 백업한다), `file:externalChange`(M→R 이벤트, 앱이 쓴 것을 뺀 디스크 변경), `editor:setDirty` / `confirmUnsaved` / `closeReady`(R→M)와 `editor:closeRequest` / `menuCommand`(M→R 이벤트)로 저장 확인과 앱 메뉴를 잇는다. `ai:inlineEdit`(R→M, `{ requestId, path, range, prompt, bufferText }` → `ok { replacement, note }` / `canceled` / `unavailable { reason: off/no-key/project-off/sensitive }` / `error`), `ai:cancel`(R→M, `{ requestId }`), `ai:inlineScope`(R→M, 커서 줄을 감싸는 함수 범위). main에는 저장·백업·자기 쓰기 해시를 맡는 `EditService`를 추가한다.
 
-**그래프 기능 채널**: `graph:get`(R→M, 프로젝트 파일 그래프 `{ nodes, edges }`), `graph:updated`(M→R 이벤트, 바뀐 파일만 반영), `command:analyze`(R→M, `{ command, cwd }` → `{ entry, args, reachable }` 또는 실패 이유), `command:explain`(R→M → `{ summary, args, steps, outputs, uncertain }`). main에는 import와 호출을 모으는 `CodeGraphService`, 명령을 해석하는 `CommandAnalyzer`를 추가한다. 그래프 창은 같은 preload를 쓰는 두 번째 `BrowserWindow`이고, "이 파일/함수 열기" 요청은 main을 거쳐 메인 창으로 간다.
+**그래프 기능 채널**: `graph:openWindow`(R→M), `graph:get`(R→M, 프로젝트 파일 그래프 `{ nodes, edges }`), `graph:updated`(M→R 이벤트, `{ changedPaths, upsertNodes, removeNodes, replaceEdgesFrom, edges }`), `graph:openInMain`과 `editor:reveal`(그래프 창 → main → 메인 창 "이 파일/함수 열기"), `command:analyze`(R→M, `{ command, cwd, entry }` → `ok { entry, args, reachable }` 또는 `error`. `entry`는 진입 파일을 직접 고를 때 쓴다), `command:explain`(R→M, analyze 요청 + `refresh`, `hints` → `ok { explanation, cached }` / `no-key` / `error`), `command:recent`(R→M, 최근 명령 20개). main에는 import와 호출을 모으는 `CodeGraphService`, 명령을 해석하는 `CommandAnalyzer`를 추가한다. 그래프 창은 같은 preload를 쓰는 두 번째 `BrowserWindow`(`graph.html`)이다.
 
 **hunk 표현과 렌더링**
 
 - hunk = `{ id, baseStart, baseLines, curStart, curLines, added, removed }`. id는 내용 기반 해시(기준선 줄 + 현재 줄 + 위치)다.
-- 렌더러는 이 목록으로 추가 줄 데코레이션과 삭제 줄 view zone을 그린다. Monaco 내장 DiffEditor는 쓰지 않는다. 사이드바 숫자와 hunk가 같은 계산에서 나와야 하기 때문이다.
-- 체크 버튼은 hunk 첫 줄의 content widget(또는 glyph margin)으로 붙인다.
+- 렌더러는 이 목록으로 추가 줄 데코레이션과 삭제 줄 view zone을 그린다. Monaco 내장 DiffEditor는 쓰지 않는다. 사이드바 숫자와 hunk가 같은 계산에서 나와야 하기 때문이다. 삭제 줄 zone의 순서값(ordinal)은 10001로 고정해 같은 줄의 찾기(⌘F) 위젯 여백(10000) 뒤, ⌘K zone(20000~) 앞에 오게 한다.
+- 체크 버튼은 에디터 위에 겹친 React 층에 그리고, 스크롤·view zone·접기 변화 때 위치를 다시 잰다. 가로 스크롤과 상관없이 오른쪽 끝에 붙이기 위해서다(content widget·glyph margin을 쓰지 않는다).
+- 바뀌지 않은 구간 접기는 Monaco의 `setHiddenAreas`(공개 타입에 없음, 런타임에 없으면 접지 않음)로 하고, "⋯ N줄 숨김" zone은 `showInHiddenAreas: true`로 숨긴 구간 위에서도 보이게 한다.
 - `applyHunk(baseline, current, hunk)`는 순수 함수로 `shared/`에 두고 단위 테스트한다. 순수 추가(baseLines=0), 순수 삭제(curLines=0), 파일 끝 개행 차이, CRLF를 꼭 테스트한다.
 
 **저장 위치** (`~/Library/Application Support/Differ/`)
 
 ```
 settings.json            앱 설정 (키 제외), 창 크기·위치
-secrets.bin              safeStorage로 암호화한 API 키
+secrets.bin              safeStorage로 암호화한 API 키 (권한 0600)
+projects.json            등록 순서와 활성 프로젝트
 projects/<projectId>/
-  project.json           루트 경로, 시작 방식, 제외 패턴
-  index.json             파일별 { baselineBlob, lastChangedAt, status }
+  project.json           루트 경로, 시작 방식, 제외 패턴, AI 켜기
+  index.json             파일별 { baselineBlob, baselineBinary, lastChangedAt, status, added, removed, diskHash, mtimeMs, size }
   blobs/<sha256>         기준선 내용 (내용 주소 방식)
-  undo.json              최근 확인 동작 스택
+  undo.json              최근 확인 동작 스택 (100단계)
+  backups/<경로 해시 16자>/  충돌 때 덮어쓴 디스크 버전 (path.txt, <시각>-<해시>.bak, 최근 20개)
 ai-cache/<sha256>.json   파일·함수 설명 캐시
+commands/recent/<projectId>.json  최근 명령 20개
+commands/cache/<key>.json         명령 설명 캐시
+graph-window.json        그래프 창 위치·크기
 ```
 
-- projectId는 루트 절대경로 SHA-256의 앞 16자다.
-- 앱 시작 시 index가 참조하지 않는 blob만 지운다.
-- 등록 시 스냅샷은 백그라운드로 돌리고 사이드바에 진행률을 보여준다. 파일이 2만 개를 넘으면 경고한다.
-- index.json은 임시 파일에 쓴 뒤 rename해서 원자적으로 저장한다.
+- projectId는 realpath로 바꾼 루트 절대경로 SHA-256의 앞 16자다. 같은 폴더를 다시 추가하면 기존 프로젝트를 선택만 한다. 앱 데이터 폴더와 그 하위는 추가를 거절한다.
+- 앱 시작 시 index와 undo 어디에서도 참조하지 않는 blob만 지운다(undo가 참조하는 blob을 지우면 ⌥⌘Z로 되살릴 수 없다).
+- 바이너리와 2MB 초과 파일의 기준선은 blob 없이 index에 SHA-256만 둔다. 64MB를 넘는 파일은 내용 대신 크기와 수정 시각으로 해시한다. 시작할 때 크기와 수정 시각이 그대로인 파일은 다시 읽지 않는다.
+- 등록 시 스냅샷은 감시기를 먼저 켠 뒤 백그라운드로 돌리고 사이드바에 진행률을 보여준다. 파일이 2만 개를 넘으면 경고한다. index.json이 깨져 있으면 스냅샷을 다시 찍고 그 사실을 알린다.
+- index.json과 undo.json은 임시 파일에 쓴 뒤 rename해서 원자적으로 저장한다. 모든 변경 작업은 프로젝트별 직렬 큐로 돈다.
+- ⌘K 최근 프롬프트만 렌더러 localStorage에 둔다(사이드바 너비와 같은 방식).
 
 **보안 설정**
 
 - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, 엄격한 CSP.
 - CSP는 빌드 결과물에서 인라인 스크립트를 허용하지 않는다. 개발 서버에서만 React Refresh가 넣는 인라인 preamble 하나를 sha256 해시로 허용한다(`electron.vite.config.ts`의 `differ:csp`).
 - 렌더러는 새 창을 열거나 다른 주소로 이동하지 않는다(`window.open` 거부, 같은 주소 새로고침만 허용).
-- Monaco는 CDN이 아니라 번들된 패키지를 쓴다(`@monaco-editor/react`의 `loader.config({ monaco })`). 워커도 Vite로 번들한다.
+- Monaco는 CDN이 아니라 번들된 `monaco-editor`를 직접 불러온다(`monaco-editor/editor` + 기능 등록 + Monarch 언어 정의). 편집기 워커만 Vite로 번들하고(`worker-src 'self' blob:`), TS·JSON·CSS·HTML 언어 서비스 워커는 싣지 않는다(진단 밑줄 없음).
 - 외부 네트워크 요청은 Anthropic API 호출뿐이다.
 
 ## 10. 구현 단계와 완료 기준
@@ -528,9 +569,16 @@ ai-cache/<sha256>.json   파일·함수 설명 캐시
 
 **테스트**
 
-- Vitest: `applyHunk`, diff→hunk 변환, BaselineStore(저장·복원·undo), 제외 규칙, AI 응답 파싱, 편집 투명 매핑, 인라인 수정 결과 적용, import 해석, 명령 해석.
-- Playwright(Electron): 임시 폴더로 프로젝트 생성 → 파일 수정 → 목록 표시 → 체크 → 사라짐까지 한 흐름.
+- Vitest: `applyHunk`, diff→hunk 변환, BaselineStore(저장·복원·undo), 제외 규칙, AI 응답 파싱, 편집 투명 매핑, 인라인 수정 결과 적용, import 해석, 명령 해석. ReviewService 통합 테스트는 실제 임시 폴더와 실제 @parcel/watcher로 돈다(Electron 없이).
+- Playwright(Electron) `tests/e2e/`:
+  - `window.spec`: 창·테마·sandbox, 사이드바 너비, 창 크기 기억.
+  - `review.spec`: 감시·재시작·소스 폴더 불변, hunk 체크·재수정·접기, 전체 확인·⌥⌘Z·파일 이동, git HEAD 시작·프로젝트 전환·⌘P·우클릭.
+  - `edit.spec`: 편집 투명 규칙 저장, 충돌 배너·백업, 저장 확인, 편집 설정.
+  - `graph.spec`: 간선·호버·증분 갱신·더블클릭 열기·명령 분석.
+  - `settings.spec`: 글자 크기·불투명도·제외 패턴, 키 없는 ⌘K.
+  - `ai.spec`: 가짜 Anthropic API로 설명·⌘K·명령 설명.
 - E2E는 `DIFFER_USER_DATA_DIR` 환경 변수로 테스트마다 임시 앱 데이터 폴더를 써서 실제 사용자 데이터를 건드리지 않는다. `pnpm test:e2e`는 빌드한 뒤 Electron 앱을 띄운다.
+- AI E2E는 `app.evaluate`로 main의 `fetch`를 가짜 Anthropic API로, `safeStorage`를 가짜 암호기로 바꿔 끼운다. 사용자 키체인과 네트워크를 건드리지 않고, 제품 코드에는 테스트 훅을 넣지 않는다. 가려진 창의 렌더링 억제를 끄는 Chromium 스위치는 E2E에서만 넘긴다.
 
 **후순위 (v1 이후)**
 

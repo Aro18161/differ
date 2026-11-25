@@ -1,0 +1,51 @@
+/* ⌘K 인라인 AI 수정(SPEC 4장): 입력창·결과 줄(view zone), 고칠 범위, 미리보기 diff(빨강: 기존, 초록: 제안) */
+
+/* view zone은 .view-lines 층 아래에 깔리므로 z-index를 올려 입력·클릭을 받게 한다(삭제 줄 zone과 같다) */
+.monaco-editor .differ-ai-zone {
+  z-index: 1;
+  cursor: default;
+  user-select: none;
+}
+
+.monaco-editor .differ-ai-zone textarea {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--text-primary);
+  user-select: text;
+  cursor: text;
+}
+
+/* 고칠 범위(입력창이 열려 있는 동안) */
+.monaco-editor .differ-ai-target {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* 미리보기: 바뀌는 지금 줄 */
+.monaco-editor .differ-ai-del,
+.monaco-editor .differ-ai-del-margin {
+  background: rgba(248, 81, 73, 0.2);
+}
+
+/* 미리보기: 제안 줄(편집할 수 없고 선택·복사는 된다) */
+.monaco-editor .differ-ai-add-zone {
+  z-index: 1;
+  overflow: hidden;
+  background: rgba(46, 160, 67, 0.22);
+  color: var(--text-primary);
+  white-space: pre;
+  user-select: text;
+  cursor: text;
+}
+
+.monaco-editor .differ-ai-add-margin {
+  background: rgba(46, 160, 67, 0.22);
+}
+
+.monaco-editor .differ-ai-add-signs {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--add-fg);
+  text-align: center;
+  white-space: pre;
+}

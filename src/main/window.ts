@@ -14,6 +14,45 @@ const SAVE_DELAY_MS = 400
 /** 신호등 버튼을 사이드바 위 36px 드래그 영역 가운데에 맞춘다. */
 const TRAFFIC_LIGHT_POSITION = { x: 16, y: 12 }
 
+/** 렌더러 페이지. index: 메인 창, graph: 연관 그래프 창(⌘G). */
+export type RendererPage = 'index' | 'graph'
+
+/** 모든 창이 같은 보안 설정과 preload를 쓴다(SPEC 9장 보안 설정). */
+export function secureWebPreferences(): Electron.WebPreferences {
+  return {
+    preload: join(__dirname, '../preload/index.js'),
+    contextIsolation: true,
+    nodeIntegration: false,
+    sandbox: true
+  }
+}
+
+/** 반투명 검은 창의 공통 옵션(SPEC 7장 창). */
+export const TRANSLUCENT_WINDOW_OPTIONS = {
+  titleBarStyle: 'hiddenInset',
+  vibrancy: 'under-window',
+  visualEffectState: 'active',
+  backgroundColor: '#00000000'
+} as const satisfies Electron.BrowserWindowConstructorOptions
+
+/** 렌더러는 다른 페이지로 이동하거나 새 창을 열 일이 없다. 같은 주소 새로고침만 허용한다. */
+export function hardenNavigation(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win.webContents.getURL()) event.preventDefault()
+  })
+}
+
+/** 개발 중에는 Vite 개발 서버에서, 빌드 뒤에는 out/renderer에서 페이지를 연다. */
+export function loadPage(win: BrowserWindow, page: RendererPage): void {
+  const devServerUrl = process.env.ELECTRON_RENDERER_URL
+  if (!app.isPackaged && devServerUrl) {
+    void win.loadURL(`${devServerUrl.replace(/\/$/, '')}/${page}.html`)
+  } else {
+    void win.loadFile(join(__dirname, `../renderer/${page}.html`))
+  }
+}
+
 export function createMainWindow(): BrowserWindow {
   const initial = resolveInitialBounds(
     parseSavedWindowState(getSetting(WINDOW_STATE_KEY)),
@@ -28,36 +67,17 @@ export function createMainWindow(): BrowserWindow {
     minHeight: MIN_WINDOW_SIZE.height,
     show: false,
     title: 'Differ',
-    titleBarStyle: 'hiddenInset',
+    ...TRANSLUCENT_WINDOW_OPTIONS,
     trafficLightPosition: TRAFFIC_LIGHT_POSITION,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    backgroundColor: '#00000000',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true
-    }
+    webPreferences: secureWebPreferences()
   })
 
   if (initial.maximized) win.maximize()
   win.once('ready-to-show', () => win.show())
 
-  // 렌더러는 다른 페이지로 이동하거나 새 창을 열 일이 없다. 같은 주소 새로고침만 허용한다.
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  win.webContents.on('will-navigate', (event, url) => {
-    if (url !== win.webContents.getURL()) event.preventDefault()
-  })
-
+  hardenNavigation(win)
   rememberBounds(win)
-
-  const devServerUrl = process.env.ELECTRON_RENDERER_URL
-  if (!app.isPackaged && devServerUrl) {
-    void win.loadURL(devServerUrl)
-  } else {
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadPage(win, 'index')
 
   return win
 }

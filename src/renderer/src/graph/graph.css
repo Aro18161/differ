@@ -1,0 +1,536 @@
+/* 연관 그래프 창 전용 모양(SPEC 6장, 7장). 색은 main.css의 토큰만 쓴다: 회색 단계 + diff 초록/빨강. */
+
+.graph-root {
+  --graph-node-bg: rgba(255, 255, 255, 0.035);
+  --graph-node-border: rgba(255, 255, 255, 0.1);
+  --graph-node-border-strong: rgba(255, 255, 255, 0.32);
+  --graph-accent: rgba(255, 255, 255, 0.88);
+  --graph-card-bg: rgba(18, 18, 18, 0.96);
+  --graph-dim: 0.15;
+  --graph-fade: 150ms;
+}
+
+/* ── React Flow 바탕 ── */
+
+.graph-canvas .react-flow {
+  background: transparent;
+}
+
+.graph-canvas .react-flow__pane {
+  cursor: default;
+}
+
+.graph-canvas .react-flow__pane.dragging {
+  cursor: grabbing;
+}
+
+.graph-canvas .react-flow__node {
+  transition: opacity var(--graph-fade) ease;
+  cursor: pointer;
+}
+
+.graph-canvas .react-flow__node.is-dim,
+.graph-canvas .react-flow__edge.is-dim {
+  opacity: var(--graph-dim);
+}
+
+.graph-canvas .react-flow__edge {
+  transition: opacity var(--graph-fade) ease;
+}
+
+.graph-canvas .react-flow__edge-path {
+  transition: stroke var(--graph-fade) ease;
+}
+
+.graph-handle {
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+/* ── 노드 ── */
+
+.graph-node {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--graph-node-border);
+  border-radius: var(--radius);
+  background: var(--graph-node-bg);
+  color: var(--text-primary);
+  transition:
+    border-color var(--graph-fade) ease,
+    background-color var(--graph-fade) ease;
+}
+
+.graph-node:hover,
+.graph-node.tone-root,
+.graph-node.is-pinned {
+  border-color: var(--graph-node-border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 검색으로 옮겨 온 노드를 잠깐 강조한다. 같은 노드를 다시 찾으면 다른 이름의 애니메이션으로 다시 튼다. */
+.graph-node.is-search-a {
+  animation: graph-search-a 1.6s ease-out forwards;
+}
+
+.graph-node.is-search-b {
+  animation: graph-search-b 1.6s ease-out forwards;
+}
+
+@keyframes graph-search-a {
+  0%,
+  60% {
+    border-color: var(--graph-accent);
+  }
+}
+
+@keyframes graph-search-b {
+  0%,
+  60% {
+    border-color: var(--graph-accent);
+  }
+}
+
+.graph-node-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.graph-node-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-node-meta {
+  font-size: 11px;
+}
+
+.graph-node-dir {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-ghost);
+  /* 앞부분을 생략하고 끝(가까운 폴더)을 보여 준다. */
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-node-tag {
+  flex-shrink: 0;
+  color: var(--text-ghost);
+}
+
+.graph-node-summary {
+  overflow: hidden;
+  color: var(--text-ghost);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-badge {
+  flex-shrink: 0;
+  font-family: var(--font-code);
+  font-size: 11px;
+}
+
+.graph-folder {
+  border-style: dashed;
+}
+
+.graph-external {
+  flex-direction: row;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-secondary);
+}
+
+.graph-external .graph-node-name {
+  font-size: 12px;
+}
+
+/* ── 간선 ── */
+
+.graph-edge-order {
+  position: absolute;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.92);
+  color: var(--text-primary);
+  font-family: var(--font-code);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity var(--graph-fade) ease;
+}
+
+.graph-edge-order.tone-dim {
+  opacity: var(--graph-dim);
+}
+
+.graph-edge-order.tone-hot {
+  border-color: var(--graph-accent);
+}
+
+/* ── 카드(호버, 고정 펼침, 간선) ── */
+
+.graph-card {
+  max-width: 340px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--graph-card-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.graph-card-title {
+  margin-bottom: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.graph-card-calls {
+  font-family: var(--font-code);
+  font-size: 11.5px;
+  word-break: break-word;
+}
+
+.graph-card-dot,
+.graph-card-more,
+.graph-card-empty {
+  color: var(--text-ghost);
+}
+
+.graph-pinned {
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  user-select: text;
+}
+
+.graph-pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.graph-pinned-list li {
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-fn {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.graph-fn:hover {
+  background: var(--selected);
+}
+
+.graph-fn-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-code);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-fn-count {
+  flex-shrink: 0;
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+.graph-fn-summary {
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
+.graph-edge-card {
+  z-index: 30;
+}
+
+.graph-edge-calls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-code);
+  font-size: 11.5px;
+}
+
+.graph-edge-calls li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── 상단 띠 ── */
+
+.graph-chip {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: color var(--graph-fade) ease;
+}
+
+.graph-input {
+  width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  user-select: text;
+}
+
+.graph-input::placeholder {
+  color: var(--text-ghost);
+}
+
+.graph-input:focus {
+  border-color: var(--ring);
+}
+
+.graph-input:disabled {
+  opacity: 0.5;
+}
+
+.graph-command {
+  height: auto;
+  min-height: 64px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  resize: vertical;
+}
+
+.graph-menu {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--popover);
+}
+
+.graph-menu-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.graph-menu-item:hover {
+  background: var(--selected);
+}
+
+/* ── 왼쪽 패널 ── */
+
+.graph-panel {
+  font-size: 12.5px;
+}
+
+.graph-section {
+  margin-top: 14px;
+}
+
+.graph-section-title {
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.graph-text {
+  color: var(--text-primary);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.graph-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.graph-button:hover:not(:disabled) {
+  background: var(--selected);
+}
+
+.graph-button:disabled {
+  opacity: 0.5;
+}
+
+.graph-link {
+  font-size: 12px;
+  text-align: left;
+}
+
+.graph-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.graph-recent {
+  display: flex;
+  flex-direction: column;
+  margin-top: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.graph-recent-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  text-align: left;
+}
+
+.graph-recent-item:hover {
+  background: var(--selected);
+  color: var(--text-primary);
+}
+
+.graph-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.graph-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.graph-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  user-select: text;
+}
+
+.graph-table td {
+  padding: 3px 6px 3px 0;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.graph-table td:first-child {
+  white-space: nowrap;
+}
+
+.graph-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.graph-step:hover {
+  background: var(--selected);
+}
+
+.graph-step-order {
+  flex-shrink: 0;
+  width: 18px;
+  color: var(--text-ghost);
+  font-family: var(--font-code);
+  font-size: 11px;
+  text-align: right;
+}
+
+.graph-step-name {
+  word-break: break-word;
+}
+
+.graph-step-role {
+  color: var(--text-secondary);
+}
+
+.graph-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 12px;
+  list-style: disc;
+  font-size: 12px;
+  user-select: text;
+  word-break: break-word;
+}

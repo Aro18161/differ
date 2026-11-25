@@ -126,6 +126,129 @@ html[data-resizing='sidebar'] * {
   cursor: col-resize !important;
 }
 
+/* ---- 모션: 체크 페이드 150ms, 목록 재정렬 200ms만 쓴다(SPEC 7장) ---- */
+
+@keyframes differ-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.differ-fading {
+  animation: differ-fade-out 150ms ease-out forwards;
+}
+
+/* 사이드바 파일 줄은 가상 목록의 translateY로 놓인다. 순서가 바뀌면 같은 줄이 새 자리로 미끄러진다 */
+.differ-reorder {
+  transition: transform 200ms ease-out;
+}
+
+/* sonner 토스트의 등장·퇴장 모션과 그림자를 끈다 */
+[data-sonner-toaster] [data-sonner-toast] {
+  transition: none !important;
+  box-shadow: none !important;
+}
+
+.differ-toast {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}
+
+/* ---- 코드 창 인라인 diff (Monaco 데코레이션·view zone) ---- */
+
+.monaco-editor .differ-line-add,
+.monaco-editor .differ-margin-add {
+  background: var(--add-bg);
+}
+
+.monaco-editor .differ-line-del,
+.monaco-editor .differ-margin-del {
+  background: var(--del-bg);
+}
+
+/* 줄 번호 오른쪽 줄 장식 칸의 +/− 표시 */
+.monaco-editor .differ-sign-add,
+.monaco-editor .differ-sign-del {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monaco-editor .differ-sign-add::before,
+.monaco-editor .differ-sign-del::before {
+  font-family: var(--font-code);
+}
+
+.monaco-editor .differ-sign-add::before {
+  content: '+';
+  color: var(--add-fg);
+}
+
+.monaco-editor .differ-sign-del::before {
+  content: '−';
+  color: var(--del-fg);
+}
+
+/*
+ * view zone은 Monaco에서 .view-lines 층 아래에 깔려 마우스를 받지 못한다. Monaco 내장 diff 편집기
+ * (.line-delete-selectable)처럼 z-index를 올려 지운 줄은 선택·복사, 접힘 표시는 클릭할 수 있게 한다.
+ */
+.monaco-editor .differ-del-zone,
+.monaco-editor .differ-collapsed {
+  z-index: 1;
+}
+
+/* 기준선에서 지워진 줄. 편집할 수 없고, 글은 선택해 복사할 수 있다 */
+.monaco-editor .differ-del-zone {
+  overflow: hidden;
+  background: var(--del-bg);
+  color: var(--text-primary);
+  white-space: pre;
+  user-select: text;
+  cursor: text;
+}
+
+.monaco-editor .differ-del-code {
+  white-space: pre;
+}
+
+.monaco-editor .differ-del-note {
+  color: var(--text-ghost);
+  font-family: var(--font-ui);
+}
+
+/* Monaco가 margin zone에 position: absolute와 높이를 직접 준다 */
+.monaco-editor .differ-del-margin {
+  background: var(--del-bg);
+}
+
+.monaco-editor .differ-del-signs {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--del-fg);
+  text-align: center;
+  white-space: pre;
+}
+
+/* 바뀌지 않아 접은 구간. 누르면 펼친다 */
+.monaco-editor .differ-collapsed {
+  padding-left: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text-ghost);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.monaco-editor .differ-collapsed:hover {
+  color: var(--text-secondary);
+}
+
+.monaco-editor .differ-collapsed-margin {
+  background: rgba(255, 255, 255, 0.025);
+}
+
 /* macOS "동작 줄이기"가 켜져 있으면 모든 모션을 끈다(SPEC 7장). */
 @media (prefers-reduced-motion: reduce) {
   *,

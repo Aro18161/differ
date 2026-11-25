@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react'
-import { ChevronDown, FolderPlus, Settings } from 'lucide-react'
+import { FolderPlus, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { addProject, setSettingsOpen } from '@/features/review/actions'
+import { useReviewStore } from '@/store/review'
+import { ChangedFileList } from './ChangedFileList'
+import { ProjectSwitcher } from './ProjectSwitcher'
+import { ReviewedSection } from './ReviewedSection'
+import { SnapshotStatus } from './SnapshotStatus'
 
 type Props = {
   width: number
@@ -9,6 +15,8 @@ type Props = {
 }
 
 export function Sidebar({ width, children }: Props) {
+  const hasProject = useReviewStore((state) => state.activeProjectId !== null)
+
   return (
     <aside
       data-testid="sidebar"
@@ -18,38 +26,39 @@ export function Sidebar({ width, children }: Props) {
       {/* 신호등 버튼이 들어가는 36px 드래그 영역 */}
       <div className="app-drag h-9 shrink-0" />
 
-      {/* 프로젝트 선택·폴더 추가(M2)와 설정(M5)은 해당 단계에서 연결한다. */}
       <div className="flex h-8 shrink-0 items-center gap-0.5 px-2">
-        <button
-          type="button"
-          disabled
-          className="app-no-drag flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-[13px] text-muted-foreground"
-        >
-          <span className="truncate">프로젝트 없음</span>
-          <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-        </button>
+        <ProjectSwitcher />
         <Button
           variant="ghost"
           size="icon-sm"
-          disabled
           aria-label="폴더 추가 (⌘O)"
+          title="폴더 추가 ⌘O"
           className="app-no-drag size-7 text-muted-foreground"
+          onClick={() => void addProject()}
         >
           <FolderPlus className="size-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          disabled
           aria-label="설정 (⌘,)"
+          title="설정 ⌘,"
           className="app-no-drag size-7 text-muted-foreground"
+          onClick={() => setSettingsOpen(true)}
         >
           <Settings className="size-4" />
         </Button>
       </div>
 
-      {/* 미확인 파일 목록 자리 (M2) */}
-      <div className="min-h-0 flex-1" />
+      <SnapshotStatus />
+      {hasProject ? (
+        <>
+          <ChangedFileList />
+          <ReviewedSection />
+        </>
+      ) : (
+        <div className="min-h-0 flex-1" />
+      )}
 
       {children}
     </aside>

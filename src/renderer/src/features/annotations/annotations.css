@@ -1,0 +1,10 @@
+/* AI 함수 설명(SPEC 5장, 7장 타이포): 코드와 같은 크기, 이탤릭 없음, text-ghost 색.
+   Monaco after 주입 텍스트에 붙는 클래스라 선택·복사·검색에 걸리지 않는다. */
+.monaco-editor .differ-ai-annotation {
+  color: var(--text-ghost) !important;
+  font-style: normal !important;
+  font-weight: normal !important;
+  text-decoration: none !important;
+  pointer-events: none;
+  user-select: none;
+}
