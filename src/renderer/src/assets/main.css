@@ -1,0 +1,140 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Differ 색 토큰 (SPEC 7장). 앱은 항상 다크 테마다. */
+:root {
+  color-scheme: dark;
+
+  /* 코드 창 불투명도. 설정의 투명도 슬라이더(0.6–1.0)가 이 값을 바꾼다(M5). */
+  --editor-opacity: 0.82;
+
+  --bg-sidebar: rgba(0, 0, 0, 0.45);
+  --bg-editor: rgba(10, 10, 10, var(--editor-opacity));
+  --line: rgba(255, 255, 255, 0.06);
+  --text-primary: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.5);
+  --text-ghost: rgba(255, 255, 255, 0.32);
+  --add-bg: rgba(46, 160, 67, 0.14);
+  --add-fg: rgba(63, 185, 80, 0.85);
+  --del-bg: rgba(248, 81, 73, 0.12);
+  --del-fg: rgba(248, 81, 73, 0.85);
+  --selected: rgba(255, 255, 255, 0.07);
+
+  /* shadcn/ui 컴포넌트가 쓰는 의미 토큰을 위 토큰에 맞춘다. */
+  --background: transparent;
+  --foreground: var(--text-primary);
+  --card: rgba(18, 18, 18, 0.92);
+  --card-foreground: var(--text-primary);
+  --popover: rgba(22, 22, 22, 0.96);
+  --popover-foreground: var(--text-primary);
+  --primary: rgba(255, 255, 255, 0.9);
+  --primary-foreground: rgb(10, 10, 10);
+  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary-foreground: var(--text-primary);
+  --muted: rgba(255, 255, 255, 0.04);
+  --muted-foreground: var(--text-secondary);
+  --accent: var(--selected);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--del-fg);
+  --border: var(--line);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: rgba(255, 255, 255, 0.24);
+  --radius: 6px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --font-code: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--bg-sidebar);
+  --color-editor: var(--bg-editor);
+  --color-ghost: var(--text-ghost);
+  --color-add: var(--add-fg);
+  --color-add-bg: var(--add-bg);
+  --color-del: var(--del-fg);
+  --color-del-bg: var(--del-bg);
+  --color-selected: var(--selected);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background: transparent;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    cursor: default;
+  }
+}
+
+/* 상단 36px 등 창을 끌어 옮기는 영역. 그 안의 버튼에는 app-no-drag를 붙인다. */
+@utility app-drag {
+  -webkit-app-region: drag;
+}
+
+@utility app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 사이드바 너비를 끄는 동안에는 포인터가 어디에 있든 크기 조절 커서를 유지한다. */
+html[data-resizing='sidebar'] * {
+  cursor: col-resize !important;
+}
+
+/* macOS "동작 줄이기"가 켜져 있으면 모든 모션을 끈다(SPEC 7장). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}
